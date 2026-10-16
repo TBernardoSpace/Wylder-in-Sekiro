@@ -167,6 +167,8 @@ def price_sol(virtual_sol: int | None, virtual_token: int | None) -> float | Non
 # ---------------------------------------------------------------------------- metadata (IPFS)
 @dataclass
 class PumpMetadata:
+    name: str | None = None
+    symbol: str | None = None
     description: str = ""
     twitter: str | None = None
     telegram: str | None = None
@@ -229,6 +231,8 @@ def parse_metadata(data: Any) -> PumpMetadata:
         return None
 
     return PumpMetadata(
+        name=pick("name"),
+        symbol=pick("symbol"),
         description=(pick("description") or "")[:600],
         twitter=pick("twitter", "x"),
         telegram=pick("telegram"),

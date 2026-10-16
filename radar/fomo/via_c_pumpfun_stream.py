@@ -167,6 +167,14 @@ class PumpFunStreamSource(TokenSource):
 
     async def _emit_with_metadata(self, mint: str, name: str, symbol: str, uri: str, creator: str | None,
                                   created_at: datetime | None, mc_sol: float | None) -> None:
+        meta = None
+        if not symbol.strip():  # el mensaje no trajo ticker: se toma de la metadata antes de publicar
+            meta = await self._meta.fetch(uri) if uri else None
+            if meta is None and self.s.pumpfun_coin_url:
+                meta = await self._coin_api(mint)
+            name, symbol = (meta.name or name) if meta else name, (meta.symbol or "") if meta else ""
+            if not symbol.strip():
+                return
         tok = TokenInfo(
             name=name.strip() or symbol or mint[:6], symbol=(symbol.strip() or "?")[:20], token_address=mint,
             chain="solana", created_at=created_at or datetime.now(timezone.utc),
@@ -175,7 +183,8 @@ class PumpFunStreamSource(TokenSource):
             dexscreener_url=f"https://dexscreener.com/solana/{mint}", source=self.name)
         # Primero se publica el token (velocidad); la metadata llega como actualización.
         self._push(tok)
-        meta = await self._meta.fetch(uri) if uri else None
+        if meta is None:
+            meta = await self._meta.fetch(uri) if uri else None
         if meta is None and self.s.pumpfun_coin_url:
             meta = await self._coin_api(mint)
         if meta and (meta.description or meta.twitter or meta.website):

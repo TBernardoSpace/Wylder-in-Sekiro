@@ -250,3 +250,20 @@ def test_short_tickers_need_exact_match():
     assert _ticker_sim("EDOLLAR", "TDOLLAR") <= 75
     assert _ticker_sim("1DOLLAR", "12DOLLAR") <= 60
     assert _ticker_sim("TRUMPPENNY", "TRUMPPENNYS") > 90
+
+
+@pytest.mark.asyncio
+async def test_pumpportal_without_name_symbol_uses_metadata(monkeypatch):
+    async def fake_fetch(self, uri):
+        return PumpMetadata(name="Trump Dollar", symbol="TDOLLAR", description="Trump $1 coin")
+
+    monkeypatch.setattr(pumpfun.MetadataFetcher, "fetch", fake_fetch)
+    import httpx
+
+    src = PumpFunStreamSource(Settings(sol_price_usd=200, pumpfun_coin_url=""))
+    src._meta = pumpfun.MetadataFetcher(httpx.AsyncClient(), "")
+    src.on_message({"txType": "create", "mint": MINT, "traderPublicKey": USER, "marketCapSol": 30,
+                    "uri": "https://ipfs.io/ipfs/x"})
+    await asyncio.sleep(0.05)
+    tok = src._out.get_nowait()
+    assert (tok.name, tok.symbol) == ("Trump Dollar", "TDOLLAR")
