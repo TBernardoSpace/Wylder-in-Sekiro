@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.env
+*.db
+*.db-wal
+*.db-shm
+.venv/
+.pytest_cache/
+fomo_capture.json
