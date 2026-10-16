@@ -6,7 +6,7 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
 
 from .. import bus as topics
@@ -55,6 +55,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/api/signals")
     async def signals(limit: int = 50) -> JSONResponse:
         return JSONResponse(await radar.storage.recent_signals(min(limit, 500)))
+
+    @app.post("/api/ingest/fomo")
+    async def ingest_fomo(request: Request, x_radar_token: str | None = Header(default=None)) -> dict:
+        """Recibe {url, payload} desde tools/fomo_bridge.user.js (corre dentro de fomo.family)."""
+        if settings.ingest_token and x_radar_token != settings.ingest_token:
+            raise HTTPException(status_code=401, detail="INGEST_TOKEN inválido")
+        body = await request.json()
+        if not isinstance(body, dict) or "payload" not in body:
+            raise HTTPException(status_code=422, detail="se espera {url, payload}")
+        n = await radar.ingest_fomo_payload(str(body.get("url", "")), body["payload"])
+        return {"accepted": n}
 
     @app.websocket("/ws")
     async def ws(socket: WebSocket) -> None:

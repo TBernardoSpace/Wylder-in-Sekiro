@@ -21,25 +21,28 @@ DEFAULT_FIELD_CANDIDATES: dict[str, list[str]] = {
     "name": ["name", "tokenName", "token.name", "baseToken.name", "metadata.name", "asset.name"],
     "symbol": ["symbol", "ticker", "tokenSymbol", "token.symbol", "baseToken.symbol", "metadata.symbol"],
     "token_address": ["address", "tokenAddress", "token_address", "mint", "mintAddress", "contract",
-                      "contractAddress", "ca", "token.address", "baseToken.address"],
-    "chain": ["chain", "chainId", "chain_id", "network", "blockchain", "token.chain"],
+                      "contractAddress", "ca", "token.address", "baseToken.address", "tokenId", "token.id"],
+    "chain": ["chain", "chainId", "chain_id", "network", "networkId", "blockchain", "token.chain",
+              "token.networkId", "token.chainId"],
     "market_cap": ["marketCap", "market_cap", "marketCapUsd", "mcap", "usd_market_cap", "fdv",
                    "stats.marketCap", "token.marketCap"],
     "liquidity_usd": ["liquidity.usd", "liquidityUsd", "liquidity_usd", "liquidity", "stats.liquidity",
                       "token.liquidity"],
     "volume_5m": ["volume.m5", "volume5m", "volume_5m", "volume5mUsd", "stats.volume5m", "volume.5m",
                   "stats.5m.volume"],
-    "holder_count": ["holders", "holderCount", "holder_count", "holdersCount", "stats.holders"],
+    "holder_count": ["holders", "holderCount", "holder_count", "holdersCount", "stats.holders", "token.holders"],
     "buys_5m": ["txns.m5.buys", "buys5m", "stats.5m.buys"],
     "sells_5m": ["txns.m5.sells", "sells5m", "stats.5m.sells"],
     "price_usd": ["priceUsd", "price_usd", "price", "stats.price"],
     "created_at": ["createdAt", "created_at", "created_timestamp", "pairCreatedAt", "launchTime",
-                   "mintedAt", "timestamp"],
+                   "mintedAt", "token.createdAt", "timestamp"],
     "fomo_url": ["url", "link", "shareUrl", "fomoUrl"],
 }
 
-CHAIN_ALIASES = {"sol": "solana", "solana": "solana", "base": "base", "8453": "base", "eth": "ethereum",
-                 "ethereum": "ethereum", "1": "ethereum", "bsc": "bsc", "56": "bsc", "bnb": "bsc"}
+# Incluye los networkId que usan fomo/Codex: Solana = 1399811149, Robinhood Chain = 4663
+CHAIN_ALIASES = {"sol": "solana", "solana": "solana", "1399811149": "solana", "792703809": "solana",
+                 "base": "base", "8453": "base", "eth": "ethereum", "ethereum": "ethereum", "1": "ethereum",
+                 "bsc": "bsc", "56": "bsc", "bnb": "bsc", "4663": "robinhood", "robinhood": "robinhood"}
 
 
 def normalize_token(item: dict[str, Any], field_map: dict[str, str] | None, *, source: str,
@@ -54,7 +57,10 @@ def normalize_token(item: dict[str, Any], field_map: dict[str, str] | None, *, s
     if not address or not symbol:
         return None
     address = str(address)
-    chain_raw = str(pick("chain") or default_chain).lower()
+    chain_hint = None
+    if ":" in address:  # formato de id de fomo: "<address>:<networkId>"
+        address, chain_hint = address.rsplit(":", 1)
+    chain_raw = str(pick("chain") or chain_hint or default_chain).lower()
     chain = CHAIN_ALIASES.get(chain_raw, chain_raw)
     if chain == default_chain and address.startswith("0x") and default_chain == "solana":
         chain = "base"  # dirección EVM sin cadena explícita: fomo opera Solana + Base
@@ -117,7 +123,16 @@ class JsonHttpTokenSource(TokenSource):
         items = get_path(data, self.items_path) if self.items_path else find_item_list(data)
         if not isinstance(items, list):
             log.warning("%s: no se encontró la lista de tokens (items_path=%r)", self.name, self.items_path)
-            return []
+            items = []
+        out = self._normalize_all(items)
+        if not out and isinstance(data, dict) and not self.items_path:
+            # Respuesta de un solo token (p. ej. /proxy/tokenDetails, envuelta en responseObject/data)
+            singles = [data] + [data[k] for k in ("responseObject", "data", "token", "result")
+                                if isinstance(data.get(k), dict)]
+            out = self._normalize_all(singles)[:1]
+        return out
+
+    def _normalize_all(self, items: list) -> list[TokenInfo]:
         out = []
         for it in items:
             if not isinstance(it, dict):

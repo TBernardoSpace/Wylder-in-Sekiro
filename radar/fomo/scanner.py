@@ -17,6 +17,7 @@ from .base import TokenSource
 from .via_a_network import FomoNetworkSource
 from .via_b_wrapper import FomoWrapperSource
 from .via_c_onchain import build_onchain_sources
+from .via_d_flow import FomoFlowSource
 
 log = logging.getLogger(__name__)
 
@@ -29,6 +30,8 @@ def build_token_sources(s: Settings) -> list[TokenSource]:
         sources.append(FomoWrapperSource(s))
     if "c" in s.fomo_modes:
         sources.extend(build_onchain_sources(s))
+    if "d" in s.fomo_modes:
+        sources.append(FomoFlowSource(s))
     return sources
 
 
@@ -69,9 +72,15 @@ class TokenScanner:
             await asyncio.sleep(delay)
 
     async def _stream_loop(self, src: TokenSource, stream) -> None:
-        async for tok in stream:
-            self._set_status(f"{src.name}:stream", True, 1)
-            await self.ingest(tok)
+        try:
+            async for tok in stream:
+                self._set_status(f"{src.name}:stream", True, 1)
+                await self.ingest(tok)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            self._set_status(f"{src.name}:stream", False, 0, str(exc)[:200])
+            log.exception("Stream de %s terminó con error", src.name)
 
     async def ingest(self, tok: TokenInfo) -> None:
         if tok.created_at and utcnow() - tok.created_at > timedelta(minutes=self.s.token_max_age_minutes):

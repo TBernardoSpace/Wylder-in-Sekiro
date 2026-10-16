@@ -38,7 +38,8 @@ flowchart LR
     NW[News Watcher<br/>dedupe + edad] --> EX[Extractor<br/>Claude Haiku + heurística]
   end
   subgraph Token Scanner
-    A[Vía A<br/>XHR/WS internos<br/>Playwright stealth] --> TS
+    D[Vía D ★<br/>compras de la app FOMO<br/>on-chain, co-firmante] --> TS
+    A[Vía A<br/>userscript en fomo.family<br/>/ XHR internos / Playwright] --> TS
     B[Vía B<br/>fomoapi.io / parse.bot] --> TS
     C[Vía C<br/>DexScreener + pump.fun] --> TS
     TS[Scanner<br/>merge + on_fomo]
@@ -65,8 +66,10 @@ flowchart LR
    En paralelo corre una **heurística determinista**: nombres propios, cifras+unidad (`1 cent` → `1CENT`),
    cashtags, frases entre comillas y combinaciones sujeto+gancho (`TRUMPPENNY`, `TPENNY`). Ambas listas
    se fusionan, así que el sistema funciona aunque no haya API key o el LLM falle.
-3. **Escaneo de tokens.** Las vías A/B/C activas (`FOMO_MODES=a,c`, por ejemplo) devuelven JSON
-   heterogéneo. Un normalizador lo convierte en `TokenInfo` (`name, symbol, token_address, chain,
+3. **Escaneo de tokens.** Las vías activas (`FOMO_MODES=d,c`, por ejemplo) devuelven JSON
+   heterogéneo. La **Vía D** escucha en Solana todas las transacciones que firma la app FOMO
+   (co-firmante `AgmLJBMD…`) y calcula por token las compras, los traders únicos y el USD de los
+   últimos 5 min. Ese flujo es la señal "está explotando en fomo" sin depender de su API. Un normalizador lo convierte en `TokenInfo` (`name, symbol, token_address, chain,
    market_cap, liquidity_usd, volume_5m, holder_count, created_at, fomo_url`). Si el mismo token llega
    por varias vías, se fusiona, y si una de ellas es A o B se marca `on_fomo=True`.
 4. **Cruce (matching)**, en ambos sentidos: un token nuevo se compara con las noticias de las últimas
@@ -122,6 +125,7 @@ flowchart LR
 │   │   ├── via_a_network.py   # Vía A: HTTP / WS internos / Playwright stealth
 │   │   ├── via_b_wrapper.py   # Vía B: wrappers de terceros
 │   │   ├── via_c_onchain.py   # Vía C: DexScreener + pump.fun
+│   │   ├── via_d_flow.py      # Vía D: trades de la app FOMO on-chain (logs/blockSubscribe)
 │   │   └── scanner.py         # orquestador de vías
 │   ├── onchain/
 │   │   ├── dexscreener.py     # métricas de pares
@@ -136,6 +140,7 @@ flowchart LR
 │   └── api/server.py          # FastAPI: /, /ws, /api/snapshot, /api/signals, /health
 ├── web/index.html             # dashboard (HTML+JS sin dependencias, tema terminal)
 ├── tools/capture_fomo_network.py  # descubre endpoints de fomo.family (Vía A)
+├── tools/fomo_bridge.user.js      # userscript: reenvía al radar lo que carga fomo.family
 ├── docs/FOMO_NETWORK_INSPECTION.md
 ├── tests/test_core.py
 ├── .env.example · requirements.txt · pyproject.toml
@@ -154,7 +159,9 @@ Configuración mínima recomendada:
 ```env
 ANTHROPIC_API_KEY=sk-ant-...
 CRYPTOPANIC_TOKEN=...                 # y/o NEWSAPI_KEY, RSS_FEEDS, WS_NEWS_URL
-FOMO_MODES=c                          # empieza con on-chain; añade "a" cuando tengas el endpoint
+FOMO_MODES=d,c                        # flujo FOMO on-chain + DexScreener/pump.fun
+SOLANA_RPC_WSS=wss://...              # Helius/QuickNode/Chainstack (plan gratuito sirve para empezar)
+SOLANA_RPC_HTTPS=https://...
 TELEGRAM_BOT_TOKEN=123:ABC...
 TELEGRAM_CHAT_ID=123456789
 ```
@@ -173,14 +180,20 @@ python -m pytest -q                   # tests
    y añádelo a las excepciones de "No molestar" del sistema.
 4. `<code>CA</code>` se copia con un toque, y el botón **📋 Copiar CA** usa `copy_text` (Bot API 7.11+).
 
-### Vía A / B / C
-- **A**: ver [`docs/FOMO_NETWORK_INSPECTION.md`](docs/FOMO_NETWORK_INSPECTION.md) o ejecutar
-  `python tools/capture_fomo_network.py`. Con Cloudflare, usa `FOMO_A_PLAYWRIGHT=true` y
-  `pip install playwright && playwright install chromium`.
+### Vías de fomo.family
+fomo.family no tiene API pública. Su API interna (`prod-api.fomo.family`) está detrás de Cloudflare,
+que rechaza cualquier cliente que no sea un navegador real (HTTP 430). El detalle está en
+[`docs/FOMO_NETWORK_INSPECTION.md`](docs/FOMO_NETWORK_INSPECTION.md) §0.
+- **D (recomendada)**: `FOMO_MODES=d` y un RPC de Solana. Ve cada compra hecha desde la app FOMO
+  segundos después de confirmarse. Con `MIN_FOMO_BUYERS_5M=3`, por ejemplo, solo alertan tokens que
+  ya tienen tracción real dentro de fomo.
+- **A en navegador**: instala `tools/fomo_bridge.user.js` en Tampermonkey y deja abierta una pestaña
+  de fomo.family. Reenvía `trendingTokens` y similares (docs §9). Las otras variantes de A (HTTP
+  directo, WS, Playwright) quedan para el caso de que fomo deje de bloquear clientes externos.
 - **B**: pon en `FOMO_B_URL` la URL exacta del endpoint de listado según la doc del proveedor
   (`{category}` → `FOMO_B_CATEGORY=Memes`) y su clave. El normalizador autodetecta los campos.
-- **C**: funciona sin configuración. Con `FOMO_MODES=a,c` y `REQUIRE_ON_FOMO=true` solo alertan los
-  tokens que aparecen **a la vez** on-chain y en fomo.family.
+- **C**: funciona sin configuración. Con `FOMO_MODES=d,c` y `REQUIRE_ON_FOMO=true` solo alertan
+  los tokens que, además de existir on-chain, ya compran usuarios de FOMO.
 
 ## 4. Afinar
 | Síntoma | Ajuste |
@@ -192,9 +205,11 @@ python -m pytest -q                   # tests
 
 ## 5. Limitaciones conocidas
 - Los endpoints internos de fomo.family y de los wrappers no son públicos y pueden cambiar. Por eso
-  la Vía A/B es 100 % configurable y la Vía C sirve de red de seguridad.
-- El formato de URL de token de fomo.family (`FOMO_TOKEN_URL_TEMPLATE`) debe verificarse
-  (ver docs, §7).
+  la Vía A/B es 100 % configurable y las Vías C/D sirven de red de seguridad.
+- La Vía D depende de que FOMO siga usando el mismo co-firmante. Si `tokens:fomo:flow` deja de
+  recibir trades, revisa `docs/07-addresses.md` del repo de Chainstack Labs.
+- La Vía D solo ve con certeza las compras de tokens de Solana. Las compras que cruzan a Base o
+  Robinhood Chain no revelan el token en Solana.
 - `holder_count` no viene en DexScreener. Se completa con RugCheck/honeypot.is o con la Vía A/B.
 - SQLite + bus en memoria = un solo proceso. Para escalar horizontalmente, sustituye `bus.py` por
   Redis Streams y `storage.py` por Redis/Postgres. Las interfaces están aisladas para ello.

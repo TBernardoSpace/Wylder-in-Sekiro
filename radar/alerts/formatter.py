@@ -31,6 +31,8 @@ def telegram_text(sig: Signal, new_leader: bool = False) -> str:
         + (f" ({t.buys_5m}B/{t.sells_5m}S)" if t.buys_5m is not None else "")
         + f" | 👥 Holders {holders}",
         f"⏱ Token creado {minutes_ago(t.created_at)}",
+        *([f"🔥 FOMO 5m: {t.fomo_buyers_5m} traders · {t.fomo_buys_5m} compras · {human_usd(t.fomo_volume_usd_5m)}"]
+          if t.fomo_buyers_5m else []),
         "",
         f"🧠 <i>{escape(sig.reason)}</i>",
     ]
@@ -71,6 +73,9 @@ def discord_payload(sig: Signal, mention: str = "", new_leader: bool = False) ->
         {"name": "Liquidez", "value": human_usd(t.liquidity_usd), "inline": True},
         {"name": "Vol 5m", "value": f"{human_usd(t.volume_5m)} {_trend_icon(sf.volume_trend if sf else None)}", "inline": True},
         {"name": "Holders", "value": f"{t.holder_count:,}" if t.holder_count is not None else "n/d", "inline": True},
+        *([{"name": "🔥 FOMO 5m", "value": f"{t.fomo_buyers_5m} traders · {t.fomo_buys_5m} compras · "
+                                            f"{human_usd(t.fomo_volume_usd_5m)}", "inline": False}]
+          if t.fomo_buyers_5m else []),
         {"name": "LLM", "value": sig.reason[:200] or "-", "inline": False},
         {"name": "CA", "value": f"```{t.token_address}```", "inline": False},
         {"name": "Links", "value": links or "-", "inline": False},

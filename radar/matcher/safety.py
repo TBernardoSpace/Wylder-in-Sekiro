@@ -98,6 +98,9 @@ class SafetyFilter:
             else:
                 warnings.extend(d for d in res.details if d.startswith("⚠️"))
 
+        if s.min_fomo_buyers_5m and (token.fomo_buyers_5m or 0) < s.min_fomo_buyers_5m:
+            reasons.append(f"{token.fomo_buyers_5m or 0} compradores FOMO/5m < {s.min_fomo_buyers_5m}")
+
         if s.require_on_fomo and not token.on_fomo:
             reasons.append("aún no visto en fomo.family (REQUIRE_ON_FOMO)")
 

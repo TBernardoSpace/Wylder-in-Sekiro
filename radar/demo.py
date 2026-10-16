@@ -75,6 +75,7 @@ class DemoTokenSource(TokenSource):
             st["vol"] *= growth * random.uniform(0.98, 1.04)
             st["holders"] += int(st["vol"] / 2000)
             buys = int(st["vol"] / 150)
+            st["fomo"] = st.get("fomo", 0) + (random.randint(1, 4) if growth > 1.1 else random.randint(0, 1))
             out.append(TokenInfo(
                 name=name, symbol=sym, token_address=st["addr"], chain="solana",
                 market_cap=st["liq"] * 6, liquidity_usd=round(st["liq"]), volume_5m=round(st["vol"]),
@@ -83,6 +84,8 @@ class DemoTokenSource(TokenSource):
                 fomo_url=self.s.fomo_token_url_template.format(chain="solana", address=st["addr"]),
                 dexscreener_url=f"https://dexscreener.com/solana/{st['addr']}",
                 source=self.name, on_fomo=True,
+                fomo_buys_5m=st["fomo"] + st["fomo"] // 3, fomo_buyers_5m=st["fomo"] or None,
+                fomo_sells_5m=st["fomo"] // 4, fomo_volume_usd_5m=st["fomo"] * 85.0,
             ))
         return out
 

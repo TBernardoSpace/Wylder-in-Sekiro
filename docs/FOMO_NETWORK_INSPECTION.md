@@ -1,7 +1,45 @@
-# Cómo encontrar los endpoints internos de fomo.family (Vía A)
+# La "API" de fomo.family: qué existe y cómo usarla
 
-`fomo.family` no documenta una API pública, pero su frontend obtiene la lista de tokens de algún
-endpoint (REST, GraphQL o WebSocket). Esta guía explica cómo encontrarlo y pasarlo a `.env`.
+## 0. Qué se sabe (investigación del 16-10-2026)
+
+fomo.family **no tiene API pública**. La app usa una API interna que otros desarrolladores ya
+capturaron desde navegadores reales y desde la app de iOS:
+
+| Dato | Valor | Fuente |
+|---|---|---|
+| Host de la API interna | `https://prod-api.fomo.family` | [cvxv666/fomo-robinhood-radar `docs/fomo-endpoints.md`](https://github.com/cvxv666/fomo-robinhood-radar/blob/main/docs/fomo-endpoints.md) (HAR del 04-09-2026), [chainstacklabs/fomo-solana-rh-listeners](https://github.com/chainstacklabs/fomo-solana-rh-listeners) (iOS v1.87.1) |
+| Endpoints de descubrimiento de tokens | `/proxy/trendingTokens`, `/proxy/filterTokens`, `/proxy/verifiedTokens`, `/proxy/tokenDetails`, `/tokenAllowList/detailed` | registry.json de Chainstack |
+| Otros | `/v2/leaderboard/{24h,7d,30d}`, `/hodlers/top`, `/v2/users/{id}/swaps`, `POST /proxy/tokenWarnings` | cvxv666 |
+| Auth | `Authorization: Bearer <JWT de Privy>` que **caduca a la hora**; en el navegador está en `localStorage['privy:token']` | cvxv666, phinolex/fomo-extension-bot-order |
+| Cabecera extra | `x-supported-chains: 1,56,143,4663,8453,1399811149` | cvxv666 |
+| IDs de red | Solana `1399811149`, Base `8453`, BSC `56`, Robinhood `4663`. Ids de token `"<address>:<networkId>"` | cvxv666, phinolex |
+| Datos de mercado | los `/proxy/*` reenvían a **Codex** (defined.fi) y Mobula | cvxv666, Chainstack |
+| URL de un token | `https://fomo.family/tokens/solana/<mint>` | confirmado con el link `2bCC…pump` |
+
+**Bloqueo de Cloudflare.** `prod-api.fomo.family` rechaza en el borde todo cliente que no sea un
+navegador real, con `430 {"error":"unauthorized"}`. Pasa incluso con un token válido y repitiendo
+exactamente el cURL que genera Chrome. Por eso no aparecía nada al probarla desde fuera: no es un
+error tuyo. Además, el login es con Google vía Privy, y Google bloquea los navegadores automatizados,
+así que Playwright tampoco puede iniciar sesión.
+
+**Qué hace el radar con esto:**
+
+1. **Vía D (recomendada, sin API):** la app FOMO firma y paga *todas* sus transacciones en Solana
+   con la cuenta `AgmLJBMDCqWynYnQiPCuj9ewsNNsBJXyzoUhD9LJzN51`. El radar se suscribe a ella por RPC
+   y ve en vivo qué tokens compran los usuarios de FOMO, con compras, traders únicos y USD en 5 min.
+   No pasa por Cloudflare ni necesita sesión. Configura `FOMO_MODES=d` y `SOLANA_RPC_WSS/HTTPS`.
+2. **Userscript (Vía A en navegador):** `tools/fomo_bridge.user.js` corre *dentro* de tu pestaña de
+   fomo.family (Tampermonkey/Violentmonkey). Reenvía al radar las respuestas de `/proxy/trendingTokens`
+   y similares que la app ya recibe, y repite esa misma petición cada 15 s con tu sesión vigente.
+   Ver §9.
+
+Lo que sigue (§1-8) es el método manual por si quieres ver tú mismo las peticiones o fomo cambia
+algo.
+
+---
+
+`fomo.family` obtiene la lista de tokens de algún endpoint (REST, GraphQL o WebSocket). Esta guía
+explica cómo encontrarlo y pasarlo a `.env`.
 
 > **Atajo:** `python tools/capture_fomo_network.py --seconds 90` abre Chromium, registra todo el
 > tráfico JSON/WS mientras navegas y al final imprime las líneas `FOMO_A_*` listas para pegar.
@@ -107,15 +145,12 @@ fomo.family es sobre todo una app móvil. Si la versión web no muestra el lista
 
 ## 7. URL de compra (`FOMO_TOKEN_URL_TEMPLATE`)
 
-Abre cualquier token en fomo.family, pulsa **Share/Copy link** y compara la URL con el contract
-address. Ajusta la plantilla (`{chain}` y `{address}` se reemplazan):
+Formato confirmado con un token real: `https://fomo.family/tokens/solana/2bCCHQadi4QeHWPKG3w13siCyWWQPgkFtniouTqVpump`.
+En EVM sigue el mismo patrón (`/tokens/base/0x…`, `/tokens/robinhood/0x…`). Es el valor por defecto:
 
 ```env
 FOMO_TOKEN_URL_TEMPLATE=https://fomo.family/tokens/{chain}/{address}
 ```
-
-Ese link es el botón **"🟢 Comprar en Fomo"** de Telegram, Discord y el dashboard. Comprueba el
-formato antes de operar.
 
 ## 8. Buenas prácticas
 
@@ -123,3 +158,25 @@ formato antes de operar.
 - Revisa los términos de servicio de fomo.family y de los wrappers que uses.
 - Los endpoints internos cambian sin aviso. Cuando el estado `tokens:fomo:A` del dashboard pase a
   ✖, repite esta guía o ejecuta de nuevo el script de captura.
+
+## 9. Userscript `tools/fomo_bridge.user.js` (paso a paso)
+
+1. Instala **Tampermonkey** o **Violentmonkey** en Chrome/Brave/Firefox.
+2. Crea un script nuevo, pega el contenido de `tools/fomo_bridge.user.js` y ajusta arriba:
+   - `RADAR_URL` (por defecto `http://127.0.0.1:8000/api/ingest/fomo`);
+   - `INGEST_TOKEN`, que debe ser igual al `INGEST_TOKEN` del `.env`;
+   - `REPLAY_MS` (15 s; `0` = solo escucha pasiva).
+3. Arranca el radar (`python -m radar`). Abre https://fomo.family, inicia sesión y entra en la
+   sección de tokens trending o nuevos. La primera vez, Tampermonkey te pide permiso para conectar
+   con `127.0.0.1`: acéptalo.
+4. Abajo a la derecha aparece `radar ▸ N envíos · M tokens · K listados`. En el dashboard verás la
+   fuente `tokens:fomo:bridge` y los tokens con la etiqueta **FOMO**.
+5. Si `M tokens` se queda en 0 con envíos > 0, la forma del JSON cambió. El log del radar imprime
+   una muestra; con ella define `FOMO_A_ITEMS_PATH` y `FOMO_A_FIELD_MAP` (el bridge usa ese mapeo).
+
+Cómo funciona: intercepta `fetch` y `XMLHttpRequest` de la página. Solo lee las respuestas de
+`prod-api.fomo.family` que coinciden con `/proxy/(trendingTokens|filterTokens|verifiedTokens|tokenDetails|…)`.
+Para el replay reutiliza la URL, el método, el cuerpo y las cabeceras de la última petición que
+hizo la app, con el último `Authorization` visto. Cuando Privy renueva el token, la app lo usa en su
+siguiente petición y el script lo adopta. No guarda tokens ni los envía a ningún sitio fuera de
+`127.0.0.1`.

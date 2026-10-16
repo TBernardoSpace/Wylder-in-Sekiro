@@ -65,6 +65,8 @@
   .b-watch { background: var(--amber-dim); color: var(--amber); }
   .b-rejected { background: var(--red-dim); color: var(--red); }
   .news-ref { margin-top: 6px; padding-left: 8px; border-left: 2px solid var(--line); color: var(--muted); }
+  .flow { margin-top: 6px; font-size: 11.5px; color: #ff9d5c; }
+  .flow b { color: #ffc29a; }
   .reason { margin-top: 6px; color: var(--violet); font-style: italic; }
   .warn { color: var(--amber); font-size: 11.5px; margin-top: 4px; }
   .bad { color: var(--red); font-size: 11.5px; margin-top: 4px; }
@@ -173,6 +175,9 @@ function renderNews() {
       <div class="chips">${(n.keywords || []).slice(0, 8).map((k) => `<span class="chip">${esc(k)}</span>`).join("")}</div>
     </div>`).join("");
 }
+// Compras hechas desde la app FOMO (Vía D, on-chain) en los últimos 5 min
+const flow = (t) => t.fomo_buyers_5m ? `<div class="flow">🔥 FOMO 5m: <b>${t.fomo_buyers_5m}</b> traders · ${t.fomo_buys_5m} compras` +
+  `${t.fomo_sells_5m ? ` / ${t.fomo_sells_5m} ventas` : ""} · ${usd(t.fomo_volume_usd_5m)}</div>` : "";
 function tokenCard(t) {
   return `<div class="item">
     <div><span class="sym">$${esc(t.symbol)}</span> ${esc(t.name)} <span class="chain">${esc(t.chain)}</span> ${t.on_fomo ? '<span class="fomo">FOMO</span>' : ""}</div>
@@ -182,6 +187,7 @@ function tokenCard(t) {
       <div class="kv"><small>Vol 5m</small><b>${usd(t.volume_5m)}</b></div>
       <div class="kv"><small>Holders</small><b>${t.holder_count ?? "n/d"}</b></div>
     </div>
+    ${flow(t)}
     <div class="meta"><span>creado <span data-ago="${esc(t.created_at || t.first_seen)}">${ago(t.created_at || t.first_seen)}</span></span><span>${esc(t.source)}</span>
       <a href="${safeUrl(t.dexscreener_url)}" target="_blank" rel="noopener" style="color:var(--blue)">dex</a>
       <a href="#" data-copy="${esc(t.token_address)}" style="color:var(--muted)" onclick="return false">copiar CA</a></div>
@@ -211,6 +217,7 @@ function signalCard(s) {
       <div class="kv"><small>Vol 5m</small><b>${usd(t.volume_5m)} ${trend}</b></div>
       <div class="kv"><small>Holders</small><b>${t.holder_count ?? "n/d"}</b></div>
     </div>
+    ${flow(t)}
     ${s.reason ? `<div class="reason">🧠 ${esc(s.reason)}</div>` : ""}
     ${(sf.reasons || []).map((r) => `<div class="bad">✖ ${esc(r)}</div>`).join("")}
     ${(sf.warnings || []).map((w) => `<div class="warn">${esc(w)}</div>`).join("")}

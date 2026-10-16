@@ -13,6 +13,7 @@ from . import bus as topics
 from .alerts.dispatcher import AlertDispatcher
 from .bus import EventBus
 from .config import Settings
+from .fomo.base import JsonHttpTokenSource
 from .fomo.scanner import TokenScanner, build_token_sources
 from .llm import LLMClient
 from .matcher.engine import MatchEngine
@@ -42,6 +43,11 @@ class Radar:
         self._tasks: list[asyncio.Task] = []
         self._http = httpx.AsyncClient(timeout=8)
         self.alerts = AlertDispatcher(settings)
+        self.scanner: TokenScanner | None = None
+        self._bridge_parser = JsonHttpTokenSource(
+            name="fomo:bridge", url="", items_path=settings.fomo_a_items_path,
+            field_map=settings.fomo_a_field_map, default_chain=settings.fomo_a_default_chain,
+            url_template=settings.fomo_token_url_template, on_fomo=True)
 
     def _build(self) -> tuple[NewsWatcher, TokenScanner, MatchEngine]:
         s = self.s
@@ -65,6 +71,7 @@ class Radar:
     async def start(self) -> None:
         await self.storage.init()
         watcher, scanner, engine = self._build()
+        self.scanner = scanner
         state_q = self.bus.subscribe()
         for name, coro in (("state", self._track_state(state_q)), ("engine", engine.run()),
                            ("scanner", scanner.run()), ("watcher", watcher.run())):
@@ -106,6 +113,20 @@ class Radar:
                     del self.recent_signals[oldest_sig.id]
             elif topic == topics.STATUS:
                 self.status[payload["component"]] = payload
+
+    async def ingest_fomo_payload(self, url: str, payload: Any) -> int:
+        """Respuestas JSON de prod-api.fomo.family reenviadas por el userscript (Vía A en navegador)."""
+        if self.scanner is None:
+            return 0
+        tokens = self._bridge_parser.parse_payload(payload)
+        for tok in tokens:
+            await self.scanner.ingest(tok)
+        self.bus.publish(topics.STATUS, {"component": "tokens:fomo:bridge", "ok": True, "items": len(tokens),
+                                         "error": "" if tokens else f"0 tokens reconocidos en {url[:80]}"})
+        if not tokens:
+            sample = payload if isinstance(payload, dict) else (payload[:1] if isinstance(payload, list) else payload)
+            log.info("Bridge: no se reconocieron tokens en %s. Muestra: %.300s", url, sample)
+        return len(tokens)
 
     def snapshot(self) -> dict:
         tokens = sorted(self.recent_tokens.values(), key=lambda t: t.first_seen, reverse=True)[:150]

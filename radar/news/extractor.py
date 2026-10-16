@@ -26,7 +26,7 @@ _MEME_OBJECTS = {"penny": "PENNY", "cent": "CENT", "cents": "CENT", "centavo": "
 
 def heuristic_extract(headline: str, summary: str = "") -> dict:
     text = headline.strip()
-    tokens = re.findall(r"\$?[^\W\d_][\w'’\-]*|\d+(?:[.,]\d+)?[%¢$kKmMbB]?", text)
+    tokens = re.findall(r"\$?[^\W\d_][\w'’\-]*|\$?\d+(?:[.,]\d+)?[%¢$kKmMbB]?", text)
     keywords: list[str] = []
     tickers: list[str] = []
 
@@ -72,6 +72,10 @@ def heuristic_extract(headline: str, summary: str = "") -> dict:
             keywords.append(f"{num_clean} {nxt}")
             tickers.append(f"{num_clean}{unit}")
             objects += [f"{num_clean}{unit[0]}", unit]
+        elif num.startswith("$"):  # "$1 coin" -> 1DOLLAR
+            keywords.append(f"{num_clean} dollar")
+            tickers.append(f"{num_clean}DOLLAR")
+            objects += [f"{num_clean}D", "DOLLAR"]
         elif num.endswith("¢"):
             keywords.append(f"{num_clean} cent")
             tickers.append(f"{num_clean}CENT")

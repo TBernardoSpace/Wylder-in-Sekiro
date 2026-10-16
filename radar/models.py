@@ -49,6 +49,11 @@ class TokenInfo(BaseModel):
     dexscreener_url: str | None = None
     source: str = "unknown"
     on_fomo: bool = False
+    # Flujo de compras hechas DESDE la app FOMO (Vía D, on-chain), ventana deslizante de 5 min
+    fomo_buys_5m: int | None = None
+    fomo_sells_5m: int | None = None
+    fomo_buyers_5m: int | None = None
+    fomo_volume_usd_5m: float | None = None
     first_seen: datetime = Field(default_factory=utcnow)
     last_update: datetime = Field(default_factory=utcnow)
 
@@ -61,7 +66,8 @@ class TokenInfo(BaseModel):
         """Copia métricas no nulas de `other`. Devuelve True si algo cambió."""
         changed = False
         for f in ("market_cap", "liquidity_usd", "volume_5m", "holder_count", "buys_5m", "sells_5m",
-                  "price_usd", "created_at", "dexscreener_url"):
+                  "price_usd", "created_at", "dexscreener_url", "fomo_buys_5m", "fomo_sells_5m",
+                  "fomo_buyers_5m", "fomo_volume_usd_5m"):
             v = getattr(other, f)
             if v is not None and v != getattr(self, f):
                 setattr(self, f, v)

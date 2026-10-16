@@ -65,7 +65,7 @@ class Settings:
     # --- General ---
     demo_mode: bool = False
     db_path: str = "radar.db"
-    host: str = "0.0.0.0"
+    host: str = "127.0.0.1"
     port: int = 8000
     log_level: str = "INFO"
 
@@ -111,6 +111,16 @@ class Settings:
     fomo_a_playwright_page: str = "https://fomo.family/"
     fomo_a_playwright_url_regex: str = r"api|graphql|tokens|trending"
     chromium_path: str = ""
+    # Vía A en navegador (userscript tools/fomo_bridge.user.js -> POST /api/ingest/fomo)
+    ingest_token: str = ""
+    # Vía D (flujo on-chain de la app FOMO en Solana)
+    solana_rpc_wss: str = ""
+    solana_rpc_https: str = ""
+    fomo_flow_transport: str = "logs"  # logs (cualquier RPC) | blocks (blockSubscribe)
+    fomo_flow_window_s: float = 300.0
+    fomo_flow_min_buyers: int = 2
+    fomo_flow_max_rps: float = 8.0
+    min_fomo_buyers_5m: int = 0
     # Vía B (wrappers de terceros)
     fomo_b_url: str = ""
     fomo_b_api_key: str = ""
@@ -162,7 +172,7 @@ class Settings:
         return cls(
             demo_mode=_bool("DEMO_MODE", False),
             db_path=_env("DB_PATH", "radar.db"),
-            host=_env("HOST", "0.0.0.0"),
+            host=_env("HOST", "127.0.0.1"),
             port=_int("PORT", 8000),
             log_level=_env("LOG_LEVEL", "INFO"),
             llm_enabled=_bool("LLM_ENABLED", True),
@@ -203,6 +213,14 @@ class Settings:
             fomo_a_playwright_page=_env("FOMO_A_PLAYWRIGHT_PAGE", "https://fomo.family/"),
             fomo_a_playwright_url_regex=_env("FOMO_A_PLAYWRIGHT_URL_REGEX", r"api|graphql|tokens|trending"),
             chromium_path=_env("CHROMIUM_PATH"),
+            ingest_token=_env("INGEST_TOKEN"),
+            solana_rpc_wss=_env("SOLANA_RPC_WSS"),
+            solana_rpc_https=_env("SOLANA_RPC_HTTPS"),
+            fomo_flow_transport=_env("FOMO_FLOW_TRANSPORT", "logs").lower(),
+            fomo_flow_window_s=_float("FOMO_FLOW_WINDOW_S", 300.0),
+            fomo_flow_min_buyers=_int("FOMO_FLOW_MIN_BUYERS", 2),
+            fomo_flow_max_rps=_float("FOMO_FLOW_MAX_RPS", 8.0),
+            min_fomo_buyers_5m=_int("MIN_FOMO_BUYERS_5M", 0),
             fomo_b_url=_env("FOMO_B_URL"),
             fomo_b_api_key=_env("FOMO_B_API_KEY"),
             fomo_b_api_key_header=_env("FOMO_B_API_KEY_HEADER", "x-api-key"),
