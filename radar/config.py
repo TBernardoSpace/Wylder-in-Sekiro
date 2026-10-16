@@ -136,6 +136,21 @@ class Settings:
         "&sort=created_timestamp&order=DESC&includeNsfw=false"
     )
     require_on_fomo: bool = False
+    # Stream de pump.fun: pumpportal (gratis, solo lanzamientos) | rpc (eventos on-chain: lanzamientos
+    # + cada compra/venta en la curva, usa SOLANA_RPC_WSS) | off
+    pumpfun_stream: str = "pumpportal"
+    pumpportal_wss: str = "wss://pumpportal.fun/api/data"
+    ipfs_gateway: str = "https://ipfs.io/ipfs/"
+    pumpfun_coin_url: str = "https://frontend-api-v3.pump.fun/coins/{mint}"
+    sol_price_usd: float = 0.0  # 0 = se obtiene de DexScreener
+    # Detector de narrativas emergentes (clúster de tokens con el mismo tema)
+    narrative_enabled: bool = True
+    narrative_window_min: float = 10.0
+    narrative_min_tokens: int = 4
+    narrative_spike_ratio: float = 3.0
+    narrative_baseline_hours: float = 6.0
+    narrative_warmup_min: float = 15.0
+    narrative_cooldown_min: float = 60.0
 
     # --- Matcher ---
     news_window_hours: float = 6.0
@@ -231,6 +246,18 @@ class Settings:
             fomo_c_sources=[s.lower() for s in _list("FOMO_C_SOURCES", "dexscreener,pumpfun")],
             pumpfun_url=_env("PUMPFUN_URL", cls.pumpfun_url),
             require_on_fomo=_bool("REQUIRE_ON_FOMO", False),
+            pumpfun_stream=_env("PUMPFUN_STREAM", "pumpportal").lower(),
+            pumpportal_wss=_env("PUMPPORTAL_WSS", "wss://pumpportal.fun/api/data"),
+            ipfs_gateway=_env("IPFS_GATEWAY", "https://ipfs.io/ipfs/"),
+            pumpfun_coin_url=_env("PUMPFUN_COIN_URL", "https://frontend-api-v3.pump.fun/coins/{mint}"),
+            sol_price_usd=_float("SOL_PRICE_USD", 0.0),
+            narrative_enabled=_bool("NARRATIVE_ENABLED", True),
+            narrative_window_min=_float("NARRATIVE_WINDOW_MIN", 10.0),
+            narrative_min_tokens=_int("NARRATIVE_MIN_TOKENS", 4),
+            narrative_spike_ratio=_float("NARRATIVE_SPIKE_RATIO", 3.0),
+            narrative_baseline_hours=_float("NARRATIVE_BASELINE_HOURS", 6.0),
+            narrative_warmup_min=_float("NARRATIVE_WARMUP_MIN", 15.0),
+            narrative_cooldown_min=_float("NARRATIVE_COOLDOWN_MIN", 60.0),
             news_window_hours=_float("NEWS_WINDOW_HOURS", 6.0),
             fuzzy_prefilter=_float("FUZZY_PREFILTER", 55.0),
             match_threshold=_float("MATCH_THRESHOLD", 80.0),

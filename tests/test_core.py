@@ -169,7 +169,7 @@ class FakeLLM:
     def __init__(self):
         self.calls = 0
 
-    async def judge(self, name, symbol, headlines):
+    async def judge(self, name, symbol, headlines, description="", links=None):
         self.calls += 1
         return [(95 if "Penny" in h else 10, "fake") for h in headlines]
 

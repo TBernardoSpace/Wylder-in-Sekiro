@@ -117,11 +117,15 @@ class LLMClient:
         data["meme_potential"] = max(0, min(100, int(data.get("meme_potential", 0))))
         return data
 
-    async def judge(self, token_name: str, token_symbol: str, headlines: list[str]) -> list[tuple[int, str]] | None:
+    async def judge(self, token_name: str, token_symbol: str, headlines: list[str],
+                    description: str = "", links: list[str] | None = None) -> list[tuple[int, str]] | None:
         """Devuelve [(score, motivo)] alineado con `headlines`."""
         listing = "\n".join(f"{i}. {h}" for i, h in enumerate(headlines))
+        extra = f"Descripción del creador: {description[:400]}\n" if description else ""
+        if links:
+            extra += f"Links del token: {', '.join(links)[:400]}\n"
         user = (
-            f"<token>\nNombre: {token_name}\nTicker: ${token_symbol}\n</token>\n"
+            f"<token>\nNombre: {token_name}\nTicker: ${token_symbol}\n{extra}</token>\n"
             f"<noticias>\n{listing}\n</noticias>\n"
             "¿Este token recién creado hace referencia directa a cada noticia?"
         )

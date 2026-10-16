@@ -36,7 +36,13 @@ DEMO_TOKENS = [
     ("Random Frog", "RFROG", 15_000, 6_000, 1.1, False, 6),
     ("Space Dog Helmet", "HELMET", 25_000, 8_000, 1.3, False, 38),
     ("Trump Penny 2.0", "PENNY2", 120_000, 60_000, 1.2, False, 26),
+    # Narrativa SIN noticia en el feed: la detecta el clúster de tokens (moneda de 1 dólar con Trump)
+    ("Trump Dollar", "TDOLLAR", 6_000, 1_500, 1.1, False, 44),
+    ("One Dollar Trump", "1DOLLAR", 70_000, 25_000, 1.25, False, 46),
+    ("Dollar Face", "DFACE", 2_000, 300, 1.0, False, 48),
+    ("Mint Dollar Coin", "MDOLLAR", 9_000, 2_000, 1.05, False, 50),
 ]
+DEMO_TWEET = "https://x.com/WatcherGuru/status/1977000000000000000"
 
 
 class DemoNewsSource(StreamingNewsSource):
@@ -86,6 +92,7 @@ class DemoTokenSource(TokenSource):
                 source=self.name, on_fomo=True,
                 fomo_buys_5m=st["fomo"] + st["fomo"] // 3, fomo_buyers_5m=st["fomo"] or None,
                 fomo_sells_5m=st["fomo"] // 4, fomo_volume_usd_5m=st["fomo"] * 85.0,
+                **({"twitter": DEMO_TWEET, "description": "Trump on the new $1 coin"} if "DOLLAR" in sym else {}),
             ))
         return out
 

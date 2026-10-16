@@ -17,6 +17,7 @@ from .fomo.base import JsonHttpTokenSource
 from .fomo.scanner import TokenScanner, build_token_sources
 from .llm import LLMClient
 from .matcher.engine import MatchEngine
+from .matcher.narratives import NarrativeDetector
 from .matcher.safety import MetricsHistory, SafetyFilter
 from .models import NewsItem, Signal, TokenInfo
 from .news.watcher import NewsWatcher, build_news_sources
@@ -55,6 +56,7 @@ class Radar:
             from .demo import DemoNewsSource, DemoSecurity, DemoTokenSource
 
             polling, streaming = [], [DemoNewsSource()]
+            s.narrative_warmup_min = 0  # en la demo no hay línea base que esperar
             token_sources = [DemoTokenSource(s)]
             security: Any = DemoSecurity()
         else:
@@ -66,6 +68,7 @@ class Radar:
         history = MetricsHistory()
         engine = MatchEngine(s, self.bus, self.storage, self.llm, SafetyFilter(s, history, security),
                              history, self.alerts)
+        self.narratives = NarrativeDetector(s, self.bus, self.storage) if s.narrative_enabled else None
         return watcher, scanner, engine
 
     async def start(self) -> None:
@@ -73,8 +76,11 @@ class Radar:
         watcher, scanner, engine = self._build()
         self.scanner = scanner
         state_q = self.bus.subscribe()
-        for name, coro in (("state", self._track_state(state_q)), ("engine", engine.run()),
-                           ("scanner", scanner.run()), ("watcher", watcher.run())):
+        jobs = [("state", self._track_state(state_q)), ("engine", engine.run()),
+                ("scanner", scanner.run()), ("watcher", watcher.run())]
+        if self.narratives:
+            jobs.append(("narratives", self.narratives.run()))
+        for name, coro in jobs:
             self._tasks.append(asyncio.create_task(self._supervise(name, coro), name=name))
         log.info("Radar iniciado · demo=%s · LLM=%s · vías fomo=%s", self.s.demo_mode,
                  self.llm.model if self.llm else "off", self.s.fomo_modes)

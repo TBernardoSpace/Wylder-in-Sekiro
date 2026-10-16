@@ -24,7 +24,7 @@ class NewsItem(BaseModel):
     potential_tickers: list[str] = Field(default_factory=list)
     narrative: str = ""
     meme_potential: int | None = None
-    extractor: Literal["llm", "heuristic", "demo"] = "heuristic"
+    extractor: Literal["llm", "heuristic", "demo", "cluster"] = "heuristic"
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -54,6 +54,13 @@ class TokenInfo(BaseModel):
     fomo_sells_5m: int | None = None
     fomo_buyers_5m: int | None = None
     fomo_volume_usd_5m: float | None = None
+    # Metadata del creador (pump.fun / IPFS): clave para cruzar con la noticia
+    description: str | None = None
+    twitter: str | None = None
+    telegram: str | None = None
+    website: str | None = None
+    image_url: str | None = None
+    creator: str | None = None
     first_seen: datetime = Field(default_factory=utcnow)
     last_update: datetime = Field(default_factory=utcnow)
 
@@ -67,7 +74,8 @@ class TokenInfo(BaseModel):
         changed = False
         for f in ("market_cap", "liquidity_usd", "volume_5m", "holder_count", "buys_5m", "sells_5m",
                   "price_usd", "created_at", "dexscreener_url", "fomo_buys_5m", "fomo_sells_5m",
-                  "fomo_buyers_5m", "fomo_volume_usd_5m"):
+                  "fomo_buyers_5m", "fomo_volume_usd_5m", "description", "twitter", "telegram", "website",
+                  "image_url", "creator"):
             v = getattr(other, f)
             if v is not None and v != getattr(self, f):
                 setattr(self, f, v)

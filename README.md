@@ -41,11 +41,12 @@ flowchart LR
     D[Vía D ★<br/>compras de la app FOMO<br/>on-chain, co-firmante] --> TS
     A[Vía A<br/>userscript en fomo.family<br/>/ XHR internos / Playwright] --> TS
     B[Vía B<br/>fomoapi.io / parse.bot] --> TS
-    C[Vía C<br/>DexScreener + pump.fun] --> TS
+    C[Vía C<br/>pump.fun en vivo<br/>+ DexScreener] --> TS
     TS[Scanner<br/>merge + on_fomo]
   end
   EX -- news --> BUS((Event Bus))
   TS -- token / token_update --> BUS
+  BUS --> NR[Narrativas emergentes<br/>clúster de tokens] -- news sintética --> BUS
   BUS --> M[Matcher<br/>fuzzy → LLM judge]
   M --> SF[Filtro seguridad<br/>liq · vol 5m ↑ · honeypot]
   SF --> L{¿Líder de la<br/>noticia?}
@@ -72,17 +73,27 @@ flowchart LR
    últimos 5 min. Ese flujo es la señal "está explotando en fomo" sin depender de su API. Un normalizador lo convierte en `TokenInfo` (`name, symbol, token_address, chain,
    market_cap, liquidity_usd, volume_5m, holder_count, created_at, fomo_url`). Si el mismo token llega
    por varias vías, se fusiona, y si una de ellas es A o B se marca `on_fomo=True`.
-4. **Cruce (matching)**, en ambos sentidos: un token nuevo se compara con las noticias de las últimas
+   **pump.fun en vivo** (`PUMPFUN_STREAM`): cada lanzamiento llega al instante, por PumpPortal o
+   decodificando los eventos on-chain con el IDL oficial de pump.fun. Se baja su metadata
+   (descripción, twitter, web), y en modo `rpc` también cada compra o venta en la curva: market cap,
+   volumen 5m y compras/ventas antes de que DexScreener indexe el token.
+4. **Narrativas emergentes.** Si en 10 min aparecen ≥ 4 tokens nuevos con un mismo término y eso
+   supera 3× su frecuencia normal, se publica una noticia sintética. Su link es el tweet o la web que
+   más citan esos tokens, normalmente la noticia original. Así se detecta la ola aunque ningún feed
+   haya publicado el titular todavía.
+5. **Cruce (matching)**, en ambos sentidos: un token nuevo se compara con las noticias de las últimas
    `NEWS_WINDOW_HOURS`, y una noticia nueva con los tokens recientes, porque a veces el token se crea
    antes de que la noticia llegue a tus fuentes.
    - **Pre-filtro fuzzy** (Levenshtein, rapidfuzz): ticker vs. tickers potenciales, cobertura de
-     palabras del nombre en keywords/titular y símbolo dentro del titular. Una sola palabra
-     compartida (p. ej. solo "Trump") se penaliza.
+     palabras del nombre en keywords/titular, símbolo dentro del titular, palabras de la
+     **descripción** del token y, sobre todo, si el token **enlaza el mismo tweet o la misma
+     noticia** (score 100). Una sola palabra compartida (p. ej. solo "Trump") se penaliza, y en
+     tickers cortos solo vale la coincidencia exacta (`TDOLLAR` ≠ `EDOLLAR`).
    - Los pares con fuzzy ≥ `FUZZY_PREFILTER` pasan al **juez LLM**, en un solo request por token con
      hasta 8 noticias: *"¿Este token recién creado hace referencia directa a esta noticia? Score 0-100
      + justificación en 1 línea"*.
    - `match_score = 0.7·LLM + 0.3·fuzzy`. Sin LLM, se usa solo el fuzzy.
-5. **Filtro anti-scam** (solo si `match_score ≥ MATCH_THRESHOLD`):
+6. **Filtro anti-scam** (solo si `match_score ≥ MATCH_THRESHOLD`):
    - Las métricas se refrescan con DexScreener (par con más liquidez).
    - Liquidez ≥ `MIN_LIQUIDITY_USD`.
    - Volumen 5m ≥ `MIN_VOLUME_5M` y **creciendo** según el historial de snapshots. Si aún no hay
@@ -93,13 +104,14 @@ flowchart LR
      se acepta con aviso. Con `HONEYPOT_POLICY=strict` se bloquea.
    - Si no pasa por liquidez o volumen, queda en **watch** y se re-evalúa cada `RECHECK_SECONDS`
      durante `RECHECK_MINUTES`.
-6. **Selección del ganador.** Por cada noticia suelen salir ~10 monedas basura. Solo se alerta la
-   **líder** (la primera que pasa los filtros). Otra moneda de la misma noticia solo vuelve a
+7. **Selección del ganador.** Por cada noticia suelen salir ~10 monedas basura. Solo se alerta la
+   **líder**: cuando una noticia cruza varios tokens a la vez, se evalúan de mayor a menor
+   liquidez, así que alerta primero el que concentra el dinero. Otra moneda de la misma noticia solo vuelve a
    alertar ("🔁 nuevo líder") si tiene ≥ `LEADER_SWITCH_RATIO`× su liquidez. El resto queda como
    *secundaria* en el dashboard.
-7. **Anti-spam.** La tabla `alerts` usa la clave `chain:address` y un `INSERT OR IGNORE` atómico:
+8. **Anti-spam.** La tabla `alerts` usa la clave `chain:address` y un `INSERT OR IGNORE` atómico:
    un token nunca se alerta dos veces, ni tras reiniciar el proceso.
-8. **Entrega.** La alerta va a Telegram (botones *Comprar en Fomo*, *DexScreener*, *Copiar CA* nativo
+9. **Entrega.** La alerta va a Telegram (botones *Comprar en Fomo*, *DexScreener*, *Copiar CA* nativo
    y *Noticia*) y a Discord (embed + `@here`). Todos los eventos se emiten por `/ws` al dashboard.
 
 ## 2. Estructura de carpetas
@@ -124,15 +136,18 @@ flowchart LR
 │   │   ├── base.py            # TokenSource + normalizador JSON→TokenInfo
 │   │   ├── via_a_network.py   # Vía A: HTTP / WS internos / Playwright stealth
 │   │   ├── via_b_wrapper.py   # Vía B: wrappers de terceros
-│   │   ├── via_c_onchain.py   # Vía C: DexScreener + pump.fun
+│   │   ├── via_c_onchain.py   # Vía C: DexScreener + pump.fun (polling)
+│   │   ├── via_c_pumpfun_stream.py  # pump.fun en vivo: PumpPortal o eventos on-chain
 │   │   ├── via_d_flow.py      # Vía D: trades de la app FOMO on-chain (logs/blockSubscribe)
 │   │   └── scanner.py         # orquestador de vías
 │   ├── onchain/
 │   │   ├── dexscreener.py     # métricas de pares
-│   │   └── security.py        # RugCheck (Solana) / honeypot.is (EVM)
+│   │   ├── security.py        # RugCheck (Solana) / honeypot.is (EVM)
+│   │   └── pumpfun.py         # decodificador de eventos (IDL oficial) + metadata IPFS
 │   ├── matcher/
 │   │   ├── fuzzy.py           # pre-filtro Levenshtein
 │   │   ├── safety.py          # liquidez, tendencia de volumen, honeypot
+│   │   ├── narratives.py      # narrativas emergentes por clúster de tokens
 │   │   └── engine.py          # cruce, decisión de líder, re-chequeo
 │   ├── alerts/
 │   │   ├── formatter.py       # mensajes Telegram (HTML) / Discord (embed)

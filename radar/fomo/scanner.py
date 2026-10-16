@@ -17,6 +17,7 @@ from .base import TokenSource
 from .via_a_network import FomoNetworkSource
 from .via_b_wrapper import FomoWrapperSource
 from .via_c_onchain import build_onchain_sources
+from .via_c_pumpfun_stream import PumpFunStreamSource
 from .via_d_flow import FomoFlowSource
 
 log = logging.getLogger(__name__)
@@ -30,6 +31,8 @@ def build_token_sources(s: Settings) -> list[TokenSource]:
         sources.append(FomoWrapperSource(s))
     if "c" in s.fomo_modes:
         sources.extend(build_onchain_sources(s))
+        if "pumpfun" in s.fomo_c_sources and s.pumpfun_stream != "off":
+            sources.append(PumpFunStreamSource(s))
     if "d" in s.fomo_modes:
         sources.append(FomoFlowSource(s))
     return sources
@@ -86,6 +89,8 @@ class TokenScanner:
         if tok.created_at and utcnow() - tok.created_at > timedelta(minutes=self.s.token_max_age_minutes):
             return  # token viejo: no es un lanzamiento reactivo a la noticia
         existing = self.tokens.get(tok.key)
+        if existing is None and tok.symbol == "?":
+            return  # actualización de métricas de un token que no seguimos
         if existing is None:
             self.tokens[tok.key] = tok
             await self.storage.save_token(tok)

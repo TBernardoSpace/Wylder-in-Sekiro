@@ -21,6 +21,12 @@ _UNITS = {"cent": "CENT", "cents": "CENT", "centavo": "CENT", "centavos": "CENT"
           "billion": "B", "million": "M", "trillion": "T", "percent": "PCT", "x": "X", "k": "K", "bps": "BPS"}
 _NUM_WORDS = {"one": "1", "two": "2", "three": "3", "ten": "10", "hundred": "100", "thousand": "1000",
               "un": "1", "uno": "1", "dos": "2", "tres": "3", "diez": "10", "cien": "100", "mil": "1000"}
+_HOOKS = {"PENNY", "CENT", "DOLLAR", "COIN"}
+_COIN_WORDS = {"coin", "coins", "bill", "bills", "note", "moneda", "monedas", "billete", "token"}
+# Cargos e instituciones: contexto, no el "personaje" del meme
+_TITLES = {"treasury", "secretary", "president", "minister", "ceo", "senator", "governor", "chairman", "fed",
+           "sec", "white", "house", "department", "congress", "senate", "court", "mint", "official", "former",
+           "presidente", "secretario", "ministro", "tesoro", "casa", "blanca"}
 _MEME_OBJECTS = {"penny": "PENNY", "cent": "CENT", "cents": "CENT", "centavo": "CENT", "pennies": "PENNY"}
 
 
@@ -55,7 +61,7 @@ def heuristic_extract(headline: str, summary: str = "") -> dict:
             proper.append(clean)
     for p in proper:
         keywords.append(p)
-        if len(p) <= 10:
+        if len(p) <= 10 and p.lower() not in _TITLES:
             tickers.append(p.upper())
 
     # 4) Cifras con unidad: "1 cent", "1 centavo", "100x" -> 1CENT, 100X
@@ -72,7 +78,7 @@ def heuristic_extract(headline: str, summary: str = "") -> dict:
             keywords.append(f"{num_clean} {nxt}")
             tickers.append(f"{num_clean}{unit}")
             objects += [f"{num_clean}{unit[0]}", unit]
-        elif num.startswith("$"):  # "$1 coin" -> 1DOLLAR
+        elif num.startswith("$") and num[-1].isdigit() and nxt in _COIN_WORDS:  # "$1 coin" -> 1DOLLAR ("$1.2B" no)
             keywords.append(f"{num_clean} dollar")
             tickers.append(f"{num_clean}DOLLAR")
             objects += [f"{num_clean}D", "DOLLAR"]
@@ -88,11 +94,12 @@ def heuristic_extract(headline: str, summary: str = "") -> dict:
             objects.append(_MEME_OBJECTS[tok])
 
     # 6) Combinaciones sujeto + gancho: TRUMP + PENNY -> TRUMPPENNY, TPENNY
-    objects += [p.upper() for p in proper[1:]]
+    objects += [p.upper() for p in proper[1:] if p.lower() not in _TITLES]
     tickers += objects
-    if proper:
-        subj = proper[0].upper()
-        for o in [o for o in _dedupe(objects) if o != subj][:3]:
+    # dos sujetos: en "Bessent unveils $1 coin featuring Trump" el meme es TRUMP, no BESSENT
+    subjects = [p.upper() for p in _dedupe(proper) if p.lower() not in _TITLES and p.upper() not in _HOOKS]
+    for subj in subjects[:3]:
+        for o in [o for o in _dedupe(objects) if o != subj and o.isalnum() and not o.isalpha() or o in _HOOKS][:3]:
             if len(subj) + len(o) <= 12:
                 tickers.append(f"{subj}{o}")
             tickers.append(f"{subj[0]}{o}"[:10])
@@ -102,7 +109,7 @@ def heuristic_extract(headline: str, summary: str = "") -> dict:
 
     return {
         "keywords": _dedupe(keywords)[:12],
-        "potential_tickers": [t for t in _dedupe(tickers) if 2 <= len(t) <= 12][:15],
+        "potential_tickers": [t for t in _dedupe(tickers) if 2 <= len(t) <= 12][:20],
         "narrative": " ".join(_dedupe(proper)[:4]),
         "meme_potential": None,
     }

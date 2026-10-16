@@ -65,6 +65,8 @@
   .b-watch { background: var(--amber-dim); color: var(--amber); }
   .b-rejected { background: var(--red-dim); color: var(--red); }
   .news-ref { margin-top: 6px; padding-left: 8px; border-left: 2px solid var(--line); color: var(--muted); }
+  .about { margin-top: 5px; font-size: 11px; color: var(--muted); }
+  .about a { color: var(--blue); }
   .flow { margin-top: 6px; font-size: 11.5px; color: #ff9d5c; }
   .flow b { color: #ffc29a; }
   .reason { margin-top: 6px; color: var(--violet); font-style: italic; }
@@ -106,7 +108,7 @@
     <div class="list" id="news"><div class="empty">Esperando noticias…</div></div>
   </section>
   <section id="col-tokens">
-    <h2>Tokens detectados en Fomo <span class="count" id="n-tokens">0</span></h2>
+    <h2>Tokens detectados <span class="filters"><button id="traction" class="active" title="Oculta lanzamientos sin liquidez/volumen ni compras FOMO">con tracción</button></span><span class="count" id="n-tokens">0</span></h2>
     <div class="list" id="tokens"><div class="empty">Esperando tokens…</div></div>
   </section>
   <section id="col-signals">
@@ -178,6 +180,10 @@ function renderNews() {
 // Compras hechas desde la app FOMO (Vía D, on-chain) en los últimos 5 min
 const flow = (t) => t.fomo_buyers_5m ? `<div class="flow">🔥 FOMO 5m: <b>${t.fomo_buyers_5m}</b> traders · ${t.fomo_buys_5m} compras` +
   `${t.fomo_sells_5m ? ` / ${t.fomo_sells_5m} ventas` : ""} · ${usd(t.fomo_volume_usd_5m)}</div>` : "";
+// Descripción y links que puso el creador (pump.fun / IPFS)
+const about = (t) => (t.description || t.twitter || t.website) ? `<div class="about">${t.description ? esc(t.description.slice(0, 140)) : ""}` +
+  `${t.twitter ? ` <a href="${safeUrl(t.twitter)}" target="_blank" rel="noopener">𝕏</a>` : ""}` +
+  `${t.website ? ` <a href="${safeUrl(t.website)}" target="_blank" rel="noopener">web</a>` : ""}</div>` : "";
 function tokenCard(t) {
   return `<div class="item">
     <div><span class="sym">$${esc(t.symbol)}</span> ${esc(t.name)} <span class="chain">${esc(t.chain)}</span> ${t.on_fomo ? '<span class="fomo">FOMO</span>' : ""}</div>
@@ -187,16 +193,20 @@ function tokenCard(t) {
       <div class="kv"><small>Vol 5m</small><b>${usd(t.volume_5m)}</b></div>
       <div class="kv"><small>Holders</small><b>${t.holder_count ?? "n/d"}</b></div>
     </div>
-    ${flow(t)}
+    ${flow(t)}${about(t)}
     <div class="meta"><span>creado <span data-ago="${esc(t.created_at || t.first_seen)}">${ago(t.created_at || t.first_seen)}</span></span><span>${esc(t.source)}</span>
       <a href="${safeUrl(t.dexscreener_url)}" target="_blank" rel="noopener" style="color:var(--blue)">dex</a>
       <a href="#" data-copy="${esc(t.token_address)}" style="color:var(--muted)" onclick="return false">copiar CA</a></div>
   </div>`;
 }
+const hasTraction = (t) => (t.liquidity_usd || 0) >= 1000 || (t.volume_5m || 0) >= 500 || (t.fomo_buyers_5m || 0) > 0;
+let tractionOnly = true;
+$("traction").onclick = () => { tractionOnly = !tractionOnly; $("traction").classList.toggle("active", tractionOnly); renderTokens(); };
 function renderTokens() {
-  const list = [...state.tokens.values()].sort((a, b) => new Date(b.first_seen) - new Date(a.first_seen)).slice(0, 150);
-  $("n-tokens").textContent = state.tokens.size;
-  if (list.length) $("tokens").innerHTML = list.map(tokenCard).join("");
+  const list = [...state.tokens.values()].filter((t) => !tractionOnly || hasTraction(t))
+    .sort((a, b) => new Date(b.first_seen) - new Date(a.first_seen)).slice(0, 150);
+  $("n-tokens").textContent = `${list.length}/${state.tokens.size}`;
+  $("tokens").innerHTML = list.length ? list.map(tokenCard).join("") : '<div class="empty">Sin tokens con tracción todavía.</div>';
 }
 const LABEL = { confirmed: "CONFIRMADA", secondary: "SECUNDARIA", watch: "WATCH", rejected: "DESCARTADA" };
 function signalCard(s) {
@@ -217,7 +227,7 @@ function signalCard(s) {
       <div class="kv"><small>Vol 5m</small><b>${usd(t.volume_5m)} ${trend}</b></div>
       <div class="kv"><small>Holders</small><b>${t.holder_count ?? "n/d"}</b></div>
     </div>
-    ${flow(t)}
+    ${flow(t)}${about(t)}
     ${s.reason ? `<div class="reason">🧠 ${esc(s.reason)}</div>` : ""}
     ${(sf.reasons || []).map((r) => `<div class="bad">✖ ${esc(r)}</div>`).join("")}
     ${(sf.warnings || []).map((w) => `<div class="warn">${esc(w)}</div>`).join("")}

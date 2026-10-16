@@ -49,6 +49,7 @@ class MatchEngine:
         self._promote_lock = asyncio.Lock()
         self._evaluating: set[str] = set()
         self._last_enrich: dict[str, float] = {}
+        self._rematched: set[str] = set()
         self._tasks: set[asyncio.Task] = set()
         self._dex: DexScreenerClient | None = None
 
@@ -70,6 +71,10 @@ class MatchEngine:
             elif topic == topics.TOKEN_UPDATE:
                 self.tokens[payload.key] = payload
                 self.history.record(payload)
+                if payload.description or payload.twitter or payload.website:
+                    if payload.key not in self._rematched:  # llegó la metadata: cruzar de nuevo
+                        self._rematched.add(payload.key)
+                        self._spawn(self.match_token(payload, list(self.news.values())))
                 for sig in self._signals_for(payload.key, statuses=("watch",)):
                     self._spawn(self.evaluate(sig))
 
@@ -87,8 +92,14 @@ class MatchEngine:
     async def on_news(self, news: NewsItem) -> None:
         self.news[news.id] = news
         self._prune()
-        # Cruce "hacia atrás": tokens creados ANTES de que nos llegara la noticia (es habitual)
-        await asyncio.gather(*(self.match_token(t, [news]) for t in list(self.tokens.values())))
+        # Cruce "hacia atrás": tokens creados ANTES de que nos llegara la noticia (es habitual).
+        # Los candidatos se evalúan de mayor a menor liquidez, para que el primero en alertar sea
+        # el que de verdad concentra el dinero y no el que el scheduler procesó antes.
+        found: list[Signal] = []
+        await asyncio.gather(*(self.match_token(t, [news], collect=found) for t in list(self.tokens.values())))
+        await self._enrich([s.token for s in found])
+        for sig in sorted(found, key=lambda x: -(x.token.liquidity_usd or 0)):
+            await self.evaluate(sig)
 
     async def on_token(self, token: TokenInfo) -> None:
         self.tokens[token.key] = token
@@ -96,7 +107,8 @@ class MatchEngine:
         await self.match_token(token, list(self.news.values()))
 
     # ------------------------------------------------------------------ matching
-    async def match_token(self, token: TokenInfo, news_list: list[NewsItem]) -> None:
+    async def match_token(self, token: TokenInfo, news_list: list[NewsItem],
+                          collect: list[Signal] | None = None) -> None:
         async with self._token_locks[token.key]:
             pairs = []
             for n in news_list:
@@ -110,12 +122,19 @@ class MatchEngine:
             pairs.sort(key=lambda x: x[1], reverse=True)
             pairs = pairs[: self.s.max_news_per_judge]
 
-            verdicts: list[tuple[int, str]] | None = None
-            if self.llm:
-                verdicts = await self.llm.judge(token.name, token.symbol, [n.headline for n, _, _ in pairs])
+            # El juez LLM solo evalúa noticias reales: las narrativas emergentes salen de los propios
+            # tokens y un titular sintético no le aporta contexto.
+            verdicts: dict[str, tuple[int, str]] = {}
+            judge = [n for n, _, _ in pairs if n.extractor != "cluster"]
+            if self.llm and judge:
+                links = [x for x in (token.twitter, token.website, token.telegram) if x]
+                res = await self.llm.judge(token.name, token.symbol, [n.headline for n in judge],
+                                           token.description or "", links)
+                if res:
+                    verdicts = {n.id: v for n, v in zip(judge, res, strict=True)}
 
-            for i, (n, f, why) in enumerate(pairs):
-                llm_score, reason = (verdicts[i] if verdicts else (None, why))
+            for n, f, why in pairs:
+                llm_score, reason = verdicts.get(n.id, (None, why))
                 if llm_score is None:
                     final = f
                 else:
@@ -129,7 +148,10 @@ class MatchEngine:
                              reason=reason or why)
                 self.signals[(token.key, n.id)] = sig
                 log.info("🎯 MATCH %.0f  $%s  <->  %s", final, token.symbol, n.headline[:80])
-                self._spawn(self.evaluate(sig))
+                if collect is not None:
+                    collect.append(sig)
+                else:
+                    self._spawn(self.evaluate(sig))
 
     # ------------------------------------------------------------------ seguridad + decisión
     async def evaluate(self, sig: Signal) -> None:
