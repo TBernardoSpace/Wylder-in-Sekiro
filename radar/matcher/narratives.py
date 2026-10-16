@@ -88,7 +88,9 @@ class NarrativeDetector:
         if len(current) < s.narrative_spike_ratio * max(expected, 1.0):
             return None
         # Si una noticia real ya cubre este término, el motor ya la está cruzando
-        if any(term in words for ts, words in self.recent_news_terms if ts >= now - s.news_window_hours * 3600):
+        # ("dacity" está cubierto por "dacitycoin": se compara por substring)
+        recent = [w for ts, words in self.recent_news_terms if ts >= now - s.news_window_hours * 3600 for w in words]
+        if any(term in w for w in recent):
             self.cooldown[term] = now + s.narrative_cooldown_min * 60
             return None
         self.cooldown[term] = now + s.narrative_cooldown_min * 60
@@ -108,7 +110,7 @@ class NarrativeDetector:
         top = keyed.most_common(1)
         link = sample[top[0][0]] if top and top[0][1] >= 2 else None  # al menos 2 tokens citan lo mismo
         symbols = [norm_alnum(t.symbol) for t in sorted(toks, key=lambda t: -(t.liquidity_usd or 0))]
-        mins = int(self.s.narrative_window_min)
+        mins = round(self.s.narrative_window_min * (self.s.replay_speed if self.s.replay_path else 1))
         theme = " ".join([term] + co_terms[:2])
         headline = f"Narrativa emergente en memecoins: «{theme}» — {len(keys)} tokens nuevos en {mins} min"
         if expected >= 0.1:

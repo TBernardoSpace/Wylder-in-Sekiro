@@ -85,8 +85,11 @@ class TokenScanner:
             self._set_status(f"{src.name}:stream", False, 0, str(exc)[:200])
             log.exception("Stream de %s terminó con error", src.name)
 
-    async def ingest(self, tok: TokenInfo) -> None:
-        if tok.created_at and utcnow() - tok.created_at > timedelta(minutes=self.s.token_max_age_minutes):
+    async def ingest(self, tok: TokenInfo, allow_old: bool = False) -> None:
+        """`allow_old=True` para tokens hallados buscando una noticia concreta: un token creado días
+        antes puede ser justo el que la noticia hace explotar (caso Dacity Coin / tráiler de GTA 6)."""
+        too_old = tok.created_at and utcnow() - tok.created_at > timedelta(minutes=self.s.token_max_age_minutes)
+        if too_old and not allow_old and tok.key not in self.tokens:
             return  # token viejo: no es un lanzamiento reactivo a la noticia
         existing = self.tokens.get(tok.key)
         if existing is None and tok.symbol == "?":

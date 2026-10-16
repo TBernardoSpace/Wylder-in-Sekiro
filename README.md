@@ -77,7 +77,10 @@ flowchart LR
    decodificando los eventos on-chain con el IDL oficial de pump.fun. Se baja su metadata
    (descripción, twitter, web), y en modo `rpc` también cada compra o venta en la curva: market cap,
    volumen 5m y compras/ventas antes de que DexScreener indexe el token.
-4. **Narrativas emergentes.** Si en 10 min aparecen ≥ 4 tokens nuevos con un mismo término y eso
+4. **Búsqueda inversa.** Con cada noticia (o narrativa) se buscan en DexScreener los tokens que YA
+   existían con sus tickers, aunque tengan días. Es el caso Dacity Coin: el token se creó 5 días
+   antes del tráiler de GTA 6 que lo hizo explotar.
+   **Narrativas emergentes.** Si en 10 min aparecen ≥ 4 tokens nuevos con un mismo término y eso
    supera 3× su frecuencia normal, se publica una noticia sintética. Su link es el tweet o la web que
    más citan esos tokens, normalmente la noticia original. Así se detecta la ola aunque ningún feed
    haya publicado el titular todavía.
@@ -127,6 +130,7 @@ flowchart LR
 │   ├── storage.py             # SQLite: dedupe noticias, tokens, alerts (anti-spam), signals
 │   ├── llm.py                 # Claude Haiku: extracción + juez (structured outputs)
 │   ├── demo.py                # escenario simulado "Trump Penny"
+│   ├── replay.py              # modo replay: casos reales a velocidad acelerada + reporte
 │   ├── news/
 │   │   ├── base.py            # contratos Polling/Streaming
 │   │   ├── sources.py         # CryptoPanic, NewsAPI, GDELT, RSS, WebSocket genérico
@@ -148,6 +152,7 @@ flowchart LR
 │   │   ├── fuzzy.py           # pre-filtro Levenshtein
 │   │   ├── safety.py          # liquidez, tendencia de volumen, honeypot
 │   │   ├── narratives.py      # narrativas emergentes por clúster de tokens
+│   │   ├── token_search.py    # búsqueda inversa de tokens ya existentes por noticia
 │   │   └── engine.py          # cruce, decisión de líder, re-chequeo
 │   ├── alerts/
 │   │   ├── formatter.py       # mensajes Telegram (HTML) / Discord (embed)
@@ -156,6 +161,8 @@ flowchart LR
 ├── web/index.html             # dashboard (HTML+JS sin dependencias, tema terminal)
 ├── tools/capture_fomo_network.py  # descubre endpoints de fomo.family (Vía A)
 ├── tools/fomo_bridge.user.js      # userscript: reenvía al radar lo que carga fomo.family
+├── tools/build_scenario.py        # arma un escenario de replay con datos reales de DexScreener
+├── scenarios/dacity_gta6.json     # caso real para el modo replay
 ├── docs/FOMO_NETWORK_INSPECTION.md
 ├── tests/test_core.py
 ├── .env.example · requirements.txt · pyproject.toml
@@ -210,7 +217,33 @@ que rechaza cualquier cliente que no sea un navegador real (HTTP 430). El detall
 - **C**: funciona sin configuración. Con `FOMO_MODES=d,c` y `REQUIRE_ON_FOMO=true` solo alertan
   los tokens que, además de existir on-chain, ya compran usuarios de FOMO.
 
-## 4. Afinar
+## 4. Probar con casos reales (replay)
+
+El modo replay reproduce un caso (noticias + tokens + métricas en el tiempo) a velocidad acelerada
+por el **mismo pipeline real** y reporta qué habría alertado el radar, cuándo, y si acertó.
+
+```bash
+python -m radar --replay scenarios/dacity_gta6.json --headless              # reporte en consola
+python -m radar --replay "scenarios/dacity_gta6.json#sin-noticias" --headless  # sin titular: narrativa + búsqueda
+python -m radar --replay scenarios/dacity_gta6.json --speed 20               # verlo en el dashboard
+```
+
+`scenarios/dacity_gta6.json` es el caso del 16-10-2026: Dacity Coin, creada en pump.fun 5 días antes,
+aparece en el tráiler de GTA 6 y pasa de $104K a $3,18M en una hora. El radar alerta el token
+original a los +2 min de la noticia (+8 min sin noticia, por narrativa emergente). Descarta el
+honeypot y las copias sin liquidez. El escenario documenta qué datos son reales y cuáles son
+ilustrativos.
+
+Para tu propio caso, con datos reales de DexScreener (en tu máquina):
+
+```bash
+python tools/build_scenario.py --mint <MINT> --query dollar --query "trump dollar" --out scenarios/mio.json
+python -m radar --replay "scenarios/mio.json#sin-noticias" --headless
+```
+
+Un replay nunca manda alertas reales a Telegram ni a Discord.
+
+## 5. Afinar
 | Síntoma | Ajuste |
 |---|---|
 | Demasiados falsos positivos | sube `MATCH_THRESHOLD` (85-90) o `MIN_LIQUIDITY_USD`; usa `HONEYPOT_POLICY=strict` |
@@ -218,7 +251,7 @@ que rechaza cualquier cliente que no sea un navegador real (HTTP 430). El detall
 | Coste LLM | sube `FUZZY_PREFILTER`; el juez ya agrupa hasta 8 noticias por llamada |
 | Sin API key | funciona solo con heurística + fuzzy (menos preciso con juegos de palabras) |
 
-## 5. Limitaciones conocidas
+## 6. Limitaciones conocidas
 - Los endpoints internos de fomo.family y de los wrappers no son públicos y pueden cambiar. Por eso
   la Vía A/B es 100 % configurable y las Vías C/D sirven de red de seguridad.
 - La Vía D depende de que FOMO siga usando el mismo co-firmante. Si `tokens:fomo:flow` deja de

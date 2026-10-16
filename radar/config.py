@@ -167,6 +167,11 @@ class Settings:
     require_volume_growth: bool = True
     volume_growth_min_pct: float = 0.0
     honeypot_policy: str = "warn"  # strict | warn | off
+    trend_min_gap_s: float = 10.0  # separación mínima entre snapshots para medir la tendencia de volumen
+    # Búsqueda inversa: por cada noticia se buscan en DexScreener tokens YA existentes con sus tickers
+    news_token_search: bool = True
+    news_token_search_max_queries: int = 4
+    news_token_search_max_age_days: float = 30.0
     leader_switch_ratio: float = 2.0
     enrich_with_dexscreener: bool = True
 
@@ -175,6 +180,14 @@ class Settings:
     telegram_chat_id: str = ""
     discord_webhook_url: str = ""
     discord_mention: str = ""
+
+    replay_path: str = ""
+    replay_speed: float = 30.0
+
+    @property
+    def offline(self) -> bool:
+        """Demo o replay: sin llamadas a DexScreener/RugCheck."""
+        return self.demo_mode or bool(self.replay_path)
 
     @property
     def anthropic_configured(self) -> bool:
@@ -270,6 +283,9 @@ class Settings:
             require_volume_growth=_bool("REQUIRE_VOLUME_GROWTH", True),
             volume_growth_min_pct=_float("VOLUME_GROWTH_MIN_PCT", 0.0),
             honeypot_policy=_env("HONEYPOT_POLICY", "warn").lower(),
+            news_token_search=_bool("NEWS_TOKEN_SEARCH", True),
+            news_token_search_max_queries=_int("NEWS_TOKEN_SEARCH_MAX_QUERIES", 4),
+            news_token_search_max_age_days=_float("NEWS_TOKEN_SEARCH_MAX_AGE_DAYS", 30.0),
             leader_switch_ratio=_float("LEADER_SWITCH_RATIO", 2.0),
             enrich_with_dexscreener=_bool("ENRICH_WITH_DEXSCREENER", True),
             telegram_bot_token=_env("TELEGRAM_BOT_TOKEN"),

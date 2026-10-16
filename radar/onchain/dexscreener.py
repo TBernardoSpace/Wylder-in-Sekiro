@@ -34,6 +34,21 @@ class DexScreenerClient:
         data = r.json()
         return data if isinstance(data, list) else []
 
+    async def search(self, query: str) -> list[TokenInfo]:
+        """Búsqueda por nombre/ticker (`/latest/dex/search`): encuentra tokens de cualquier antigüedad.
+        Devuelve un TokenInfo por token (el par con más liquidez)."""
+        r = await self.client.get(f"{BASE}/latest/dex/search", params={"q": query})
+        r.raise_for_status()
+        best: dict[str, dict] = {}
+        for p in (r.json() or {}).get("pairs") or []:
+            addr = (p.get("baseToken") or {}).get("address")
+            if not addr:
+                continue
+            liq = to_float((p.get("liquidity") or {}).get("usd")) or 0
+            if addr not in best or liq > (to_float((best[addr].get("liquidity") or {}).get("usd")) or 0):
+                best[addr] = p
+        return [self.pair_to_token(p) for p in best.values()]
+
     async def tokens(self, chain: str, addresses: list[str]) -> list[TokenInfo]:
         """Métricas de hasta 30 tokens por llamada; elige el par con más liquidez de cada token."""
         out: list[TokenInfo] = []

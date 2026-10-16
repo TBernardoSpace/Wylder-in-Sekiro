@@ -57,7 +57,7 @@ class MatchEngine:
     async def run(self) -> None:
         q = self.bus.subscribe()
         async with httpx.AsyncClient(timeout=8) as client:
-            if self.s.enrich_with_dexscreener and not self.s.demo_mode:
+            if self.s.enrich_with_dexscreener and not self.s.offline:
                 self._dex = DexScreenerClient(client, self.s.fomo_token_url_template)
             await asyncio.gather(self._consume(q), self._recheck_loop())
 

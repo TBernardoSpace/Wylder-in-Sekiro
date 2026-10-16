@@ -61,7 +61,7 @@ class SafetyFilter:
         if not liq_ok:
             reasons.append(f"liquidez {human_usd(token.liquidity_usd)} < {human_usd(s.min_liquidity_usd)}")
 
-        trend = self.history.trend(token.key, s.volume_growth_min_pct)
+        trend = self.history.trend(token.key, s.volume_growth_min_pct, s.trend_min_gap_s)
         vol_abs_ok = token.volume_5m is not None and token.volume_5m >= s.min_volume_5m
         # Con un solo snapshot usamos presión compradora (buys >= sells) como proxy de crecimiento
         buy_pressure = token.buys_5m is not None and token.sells_5m is not None and token.buys_5m >= token.sells_5m

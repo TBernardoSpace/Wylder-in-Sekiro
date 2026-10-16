@@ -18,6 +18,8 @@ from .fomo.scanner import TokenScanner, build_token_sources
 from .llm import LLMClient
 from .matcher.engine import MatchEngine
 from .matcher.narratives import NarrativeDetector
+from .matcher.token_search import NewsTokenSearch
+from .onchain.dexscreener import DexScreenerClient
 from .matcher.safety import MetricsHistory, SafetyFilter
 from .models import NewsItem, Signal, TokenInfo
 from .news.watcher import NewsWatcher, build_news_sources
@@ -33,9 +35,10 @@ class Radar:
         self.bus = EventBus()
         self.storage = Storage(settings.db_path)
         self.llm: LLMClient | None = None
+        # En replay el LLM es opcional (LLM_ENABLED): permite medir también el juez real
         if settings.llm_enabled and settings.anthropic_configured and not settings.demo_mode:
             self.llm = LLMClient(settings)
-        elif settings.llm_enabled and not settings.demo_mode:
+        elif settings.llm_enabled and not settings.offline:
             log.warning("ANTHROPIC_API_KEY no definido: se usará solo heurística + fuzzy matching")
         self.recent_news: deque[NewsItem] = deque(maxlen=150)
         self.recent_tokens: dict[str, TokenInfo] = {}
@@ -44,6 +47,8 @@ class Radar:
         self._tasks: list[asyncio.Task] = []
         self._http = httpx.AsyncClient(timeout=8)
         self.alerts = AlertDispatcher(settings)
+        if settings.replay_path:
+            self.alerts.targets = []  # un replay nunca manda alertas reales a Telegram/Discord
         self.scanner: TokenScanner | None = None
         self._bridge_parser = JsonHttpTokenSource(
             name="fomo:bridge", url="", items_path=settings.fomo_a_items_path,
@@ -52,7 +57,18 @@ class Radar:
 
     def _build(self) -> tuple[NewsWatcher, TokenScanner, MatchEngine]:
         s = self.s
-        if s.demo_mode:
+        searcher: Any = None
+        if s.replay_path:
+            from .replay import (ReplayClock, ReplayNewsSource, ReplaySearch, ReplaySecurity,
+                                 ReplayTokenSource, Scenario)
+
+            sc = Scenario.load(s.replay_path)
+            self.replay_clock = ReplayClock(s.replay_speed, sc.start)
+            polling, streaming = [], [ReplayNewsSource(sc, self.replay_clock)]
+            token_sources = [ReplayTokenSource(sc, self.replay_clock, s.fomo_token_url_template)]
+            security = ReplaySecurity(sc)
+            searcher = ReplaySearch(sc, self.replay_clock, s.fomo_token_url_template)
+        elif s.demo_mode:
             from .demo import DemoNewsSource, DemoSecurity, DemoTokenSource
 
             polling, streaming = [], [DemoNewsSource()]
@@ -63,12 +79,15 @@ class Radar:
             polling, streaming = build_news_sources(s)
             token_sources = build_token_sources(s)
             security = SecurityChecker(self._http)
+            searcher = DexScreenerClient(self._http, s.fomo_token_url_template)
         watcher = NewsWatcher(s, self.bus, self.storage, self.llm, polling, streaming)
         scanner = TokenScanner(s, self.bus, self.storage, token_sources)
         history = MetricsHistory()
         engine = MatchEngine(s, self.bus, self.storage, self.llm, SafetyFilter(s, history, security),
                              history, self.alerts)
         self.narratives = NarrativeDetector(s, self.bus, self.storage) if s.narrative_enabled else None
+        self.token_search = (NewsTokenSearch(s, self.bus, scanner, searcher)
+                             if s.news_token_search and searcher is not None else None)
         return watcher, scanner, engine
 
     async def start(self) -> None:
@@ -80,6 +99,8 @@ class Radar:
                 ("scanner", scanner.run()), ("watcher", watcher.run())]
         if self.narratives:
             jobs.append(("narratives", self.narratives.run()))
+        if self.token_search:
+            jobs.append(("token_search", self.token_search.run()))
         for name, coro in jobs:
             self._tasks.append(asyncio.create_task(self._supervise(name, coro), name=name))
         log.info("Radar iniciado · demo=%s · LLM=%s · vías fomo=%s", self.s.demo_mode,

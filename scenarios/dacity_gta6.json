@@ -1,0 +1,82 @@
+{
+  "name": "Dacity Coin × tráiler de GTA 6 (16-10-2026)",
+  "description": "Caso real: un token creado en pump.fun el 11-10-2026 aparece pintado en un avión ('DacityCoin AudaCity') en el tráiler de GTA 6 del 16-10-2026. Su market cap pasa de ~$104K a ~$3,18M en una hora y luego cae ~53% (~$1,5M). Tras el tráiler aparecen copias. REAL: fechas, nombre 'Dacity Coin', market caps citados ($104K, $1,14M, $3,18M, ~$1,5M). APROXIMADO/ILUSTRATIVO: hora exacta del lanzamiento, ticker, liquidez, volumen, holders y TODAS las copias (nombres y direcciones ficticias). La dirección del token original sale de un post de X no verificado: confírmala en fomo.family/DexScreener antes de usarla.",
+  "sources": [
+    "https://www.kucoin.com/news/flash/gta-6-trailer-features-meme-coin-dacity-coin-surges-2-900",
+    "https://www.chaincatcher.com/en/article/2296851",
+    "https://en.coinotag.com/solana-meme-coin-dacity-gta-6-trailer-2900",
+    "https://x.com/i/communities/1984515499284156716"
+  ],
+  "speed": 30,
+  "news": [
+    {"t": 0, "headline": "Rockstar releases new GTA 6 trailer: a plane carries the 'DacityCoin AudaCity' livery",
+     "source": "Rockstar Games (tráiler) — titular representativo", "url": "https://www.rockstargames.com/VI"},
+    {"t": 45, "headline": "GTA 6 trailer features meme coin; Dacity Coin surges 2,900%",
+     "source": "KuCoin News", "url": "https://www.kucoin.com/news/flash/gta-6-trailer-features-meme-coin-dacity-coin-surges-2-900"}
+  ],
+  "tokens": [
+    {
+      "name": "Dacity Coin", "symbol": "DACITY", "symbol_verified": false,
+      "address": "EjKayJeTgAr5QLgbLcHfYZHK4tAciYhzBHhjkmxSpump", "address_verified": false,
+      "chain": "solana", "created_min": -7200,
+      "description": "DacityCoin AudaCity — the coin from the GTA 6 leaks",
+      "timeline": [
+        {"t": -60, "market_cap": 104000, "liquidity_usd": 24000, "volume_5m": 150, "buys_5m": 2, "sells_5m": 2, "holder_count": 310},
+        {"t": 0,   "market_cap": 104000, "liquidity_usd": 24000, "volume_5m": 300, "buys_5m": 4, "sells_5m": 3, "holder_count": 312},
+        {"t": 2,   "market_cap": 180000, "liquidity_usd": 33000, "volume_5m": 21000, "buys_5m": 140, "sells_5m": 40, "holder_count": 420},
+        {"t": 4,   "market_cap": 420000, "liquidity_usd": 58000, "volume_5m": 95000, "buys_5m": 390, "sells_5m": 150, "holder_count": 900},
+        {"t": 8,   "market_cap": 900000, "liquidity_usd": 105000, "volume_5m": 230000, "buys_5m": 610, "sells_5m": 330, "holder_count": 1800},
+        {"t": 20,  "market_cap": 1900000, "liquidity_usd": 170000, "volume_5m": 310000, "buys_5m": 700, "sells_5m": 520, "holder_count": 3100},
+        {"t": 50,  "market_cap": 3180000, "liquidity_usd": 240000, "volume_5m": 280000, "buys_5m": 520, "sells_5m": 600, "holder_count": 4300},
+        {"t": 75,  "market_cap": 1500000, "liquidity_usd": 160000, "volume_5m": 120000, "buys_5m": 240, "sells_5m": 410, "holder_count": 4500}
+      ]
+    },
+    {
+      "name": "DacityCoin", "symbol": "DACITY", "address": "SimCopia1DacityXXXXXXXXXXXXXXXXXXXXXXXXpump",
+      "chain": "solana", "created_min": 3, "simulated": true,
+      "timeline": [
+        {"t": 3, "market_cap": 9000, "liquidity_usd": 1800, "volume_5m": 2500, "buys_5m": 40, "sells_5m": 10},
+        {"t": 8, "market_cap": 15000, "liquidity_usd": 3200, "volume_5m": 4000, "buys_5m": 50, "sells_5m": 35},
+        {"t": 20, "market_cap": 6000, "liquidity_usd": 1500, "volume_5m": 500, "buys_5m": 5, "sells_5m": 20}
+      ]
+    },
+    {
+      "name": "Dacity GTA6", "symbol": "DACITY6", "address": "SimCopia2HoneypotXXXXXXXXXXXXXXXXXXXXXXpump",
+      "chain": "solana", "created_min": 5, "honeypot": true, "simulated": true,
+      "timeline": [
+        {"t": 5, "market_cap": 60000, "liquidity_usd": 18000, "volume_5m": 30000, "buys_5m": 200, "sells_5m": 0},
+        {"t": 10, "market_cap": 140000, "liquidity_usd": 30000, "volume_5m": 60000, "buys_5m": 300, "sells_5m": 0}
+      ]
+    },
+    {
+      "name": "AudaCity", "symbol": "AUDACITY", "address": "SimCopia3AudacityXXXXXXXXXXXXXXXXXXXXXXpump",
+      "chain": "solana", "created_min": 6, "simulated": true,
+      "timeline": [
+        {"t": 6, "market_cap": 12000, "liquidity_usd": 2500, "volume_5m": 1500, "buys_5m": 25, "sells_5m": 8},
+        {"t": 15, "market_cap": 20000, "liquidity_usd": 4000, "volume_5m": 1800, "buys_5m": 20, "sells_5m": 18}
+      ]
+    },
+    {
+      "name": "Dacity Inu", "symbol": "DINU", "address": "SimCopia4DacityInuXXXXXXXXXXXXXXXXXXXXXpump",
+      "chain": "solana", "created_min": 7, "simulated": true,
+      "timeline": [{"t": 7, "market_cap": 7000, "liquidity_usd": 1200, "volume_5m": 400, "buys_5m": 6, "sells_5m": 2}]
+    },
+    {
+      "name": "Dacity Plane", "symbol": "DPLANE", "address": "SimCopia5DacityPlaneXXXXXXXXXXXXXXXXXXXpump",
+      "chain": "solana", "created_min": 8, "simulated": true,
+      "timeline": [{"t": 8, "market_cap": 8000, "liquidity_usd": 1500, "volume_5m": 600, "buys_5m": 9, "sells_5m": 3}]
+    },
+    {
+      "name": "Random Frog", "symbol": "RFROG", "address": "SimRuidoFrogXXXXXXXXXXXXXXXXXXXXXXXXXXXpump",
+      "chain": "solana", "created_min": 1, "simulated": true,
+      "timeline": [{"t": 1, "market_cap": 50000, "liquidity_usd": 15000, "volume_5m": 8000, "buys_5m": 60, "sells_5m": 30}]
+    }
+  ],
+  "expect": {
+    "first_alert": "EjKayJeTgAr5QLgbLcHfYZHK4tAciYhzBHhjkmxSpump",
+    "within_min": 10,
+    "never_alert": ["SimCopia2HoneypotXXXXXXXXXXXXXXXXXXXXXXpump", "SimRuidoFrogXXXXXXXXXXXXXXXXXXXXXXXXXXXpump"],
+    "first_alert_without_news": "EjKayJeTgAr5QLgbLcHfYZHK4tAciYhzBHhjkmxSpump",
+    "within_min_without_news": 25
+  }
+}
